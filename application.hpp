@@ -62,6 +62,9 @@ protected:
 	GLuint tree_texture;
     /** The cloud mask texture */
     GLuint cloud_mask_tex;
+    /** The depth mask texture */
+    GLuint sky_depth_tex;
+    GLuint surface_mask_tex;
 
 	// ----------------------------------------------------------------------------
 	// Variables (Light)
@@ -85,16 +88,19 @@ protected:
 	/** The program for rendering textures. */
 	ShaderProgram display_texture_program;
     ShaderProgram cloud_mask_program;
+    ShaderProgram depth_mask_program;
 
 	// ----------------------------------------------------------------------------
 	// Variables (Frame Buffers)
 	// ----------------------------------------------------------------------------
     GLuint cloud_mask_fbo;
+    GLuint depth_mask_fbo;
 protected:
     // ----------------------------------------------------------------------------
     // Variables (Others)
     // ----------------------------------------------------------------------------
-    int cloud_mask_resolution = 1024;
+    int cloud_mask_reso = 1024;
+    int sky_tex_reso = 1024;
 
 	// ----------------------------------------------------------------------------
 	// Variables (GUI)
@@ -214,6 +220,10 @@ public:
 
     /** Render cloud mask */
     void render_cloud_mask();
+
+    /** Render depth mask */
+    void render_depth_pass();
+    void render_object_to_depth_pass(const SceneObject& object, float surface_value, bool render_as_patches) const;
 
 	// ----------------------------------------------------------------------------
 	// GUI

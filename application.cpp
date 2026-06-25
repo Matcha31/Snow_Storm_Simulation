@@ -17,8 +17,14 @@ Application::Application(int initial_width, int initial_height, std::vector<std:
 
 Application::~Application()
 {
+    // Cloud mask resources
     glDeleteFramebuffers(1, &cloud_mask_fbo);
     glDeleteTextures(1, &cloud_mask_tex);
+
+    // Depth mask resources
+    glDeleteFramebuffers(1, &depth_mask_fbo);
+    glDeleteTextures(1, &sky_depth_tex);
+    glDeleteTextures(1, &surface_mask_tex);
 }
 
 // ----------------------------------------------------------------------------
@@ -30,6 +36,7 @@ void Application::compile_shaders()
 	default_lit_program = ShaderProgram(lecture_shaders_path / "object.vert", lecture_shaders_path / "lit.frag");
 	display_texture_program = ShaderProgram(lecture_shaders_path / "full_screen_quad.vert", lecture_shaders_path / "display_texture.frag");
     cloud_mask_program = ShaderProgram(lecture_shaders_path / "object.vert", lecture_shaders_path / "cloud_mask.frag");
+    depth_mask_program = ShaderProgram(lecture_shaders_path / "object.vert", lecture_shaders_path / "depth_mask.frag");
 
 	std::cout << "Shaders are reloaded." << std::endl;
 }
@@ -88,7 +95,7 @@ void Application::prepare_framebuffers()
 {
     // Cloud mask framebuffer
 	glCreateTextures(GL_TEXTURE_2D, 1, &cloud_mask_tex);
-	glTextureStorage2D(cloud_mask_tex, 1, GL_RGBA8, cloud_mask_resolution, cloud_mask_resolution); // allocate mem
+	glTextureStorage2D(cloud_mask_tex, 1, GL_RGBA8, cloud_mask_reso, cloud_mask_reso); // allocate mem
     // Filtering
 	glTextureParameteri(cloud_mask_tex, GL_TEXTURE_MIN_FILTER, GL_LINEAR); // smoother edges
 	glTextureParameteri(cloud_mask_tex, GL_TEXTURE_MAG_FILTER, GL_LINEAR); 
@@ -107,6 +114,34 @@ void Application::prepare_framebuffers()
 	{
 		throw std::runtime_error("Cloud mask framebuffer is incomplete.");
 	}
+
+    // Depth mask framebuffer
+    glCreateTextures(GL_TEXTURE_2D, 1, &sky_depth_tex);
+    glTextureStorage2D(sky_depth_tex, 1, GL_DEPTH_COMPONENT32F, sky_tex_reso, sky_tex_reso);
+    glTextureParameteri(sky_depth_tex, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTextureParameteri(sky_depth_tex, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTextureParameteri(sky_depth_tex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(sky_depth_tex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(sky_depth_tex, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+
+    glCreateTextures(GL_TEXTURE_2D, 1, &surface_mask_tex);
+    glTextureStorage2D(surface_mask_tex, 1, GL_RGBA8, sky_tex_reso, sky_tex_reso);
+    glTextureParameteri(surface_mask_tex, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTextureParameteri(surface_mask_tex, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTextureParameteri(surface_mask_tex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(surface_mask_tex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glCreateFramebuffers(1, &depth_mask_fbo);
+    glNamedFramebufferTexture(depth_mask_fbo, GL_DEPTH_ATTACHMENT, sky_depth_tex, 0);
+    glNamedFramebufferTexture(depth_mask_fbo, GL_COLOR_ATTACHMENT0, surface_mask_tex, 0);
+
+    glNamedFramebufferDrawBuffers(depth_mask_fbo, 1, draw_buffers);
+    glNamedFramebufferReadBuffer(depth_mask_fbo, GL_COLOR_ATTACHMENT0);
+
+    if (glCheckNamedFramebufferStatus(depth_mask_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    {
+        throw std::runtime_error("Depth mask framebuffer is incomplete.");
+    }
 }
 
 void Application::resize_fullscreen_textures()
@@ -206,7 +241,7 @@ void Application::render_cloud_mask()
 {
     // Every frame because size and position of the cloud can change.
 	glBindFramebuffer(GL_FRAMEBUFFER, cloud_mask_fbo);
-	glViewport(0, 0, cloud_mask_resolution, cloud_mask_resolution);
+	glViewport(0, 0, cloud_mask_reso, cloud_mask_reso);
 
     // Black
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -226,6 +261,60 @@ void Application::render_cloud_mask()
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+void Application::render_object_to_depth_pass(const SceneObject& object, float surface_value, bool render_as_patches) const
+{
+	depth_mask_program.use();
+	depth_mask_program.uniform("surface_value", surface_value);
+
+	object.get_model_ubo().bind_buffer_base(ModelUBO::DEFAULT_MODEL_BINDING);
+	object.get_geometry().bind_vao();
+
+    if (render_as_patches)
+    {
+        glPatchParameteri(GL_PATCH_VERTICES, 3);
+        if (object.get_geometry().draw_elements_count > 0)
+        {
+            glDrawElements(GL_PATCHES, object.get_geometry().draw_elements_count, GL_UNSIGNED_INT, nullptr);
+        }
+        else
+        {
+            glDrawArrays(GL_PATCHES, 0, object.get_geometry().draw_arrays_count);
+        }
+    }
+    else
+    {
+        object.get_geometry().draw();
+    }
+}
+
+void Application::render_depth_pass()
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, depth_mask_fbo);
+	glViewport(0, 0, sky_tex_reso, sky_tex_reso);
+
+    // Black
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearDepth(1.0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_TRUE);
+	glDisable(GL_BLEND);
+
+	sky_camera_ubo.bind_buffer_base(CameraUBO::DEFAULT_CAMERA_BINDING);
+
+    // Renders the terrain for 0.5
+	render_object_to_depth_pass(snow_terrain_object, 0.5f, false);
+
+    // Renders the objects for 1.0
+	for (const SceneObject& object : scene_objects)
+	{
+		render_object_to_depth_pass(object, 1.0f, false);
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
 
 void Application::render()
 {
@@ -236,6 +325,7 @@ void Application::render()
 	update_cloud_location();
     // Renders the cloud mask.
     render_cloud_mask();
+    render_depth_pass();
 
 	if (what_to_display == DISPLAY_CLOUD_MASK)
 	{
@@ -255,11 +345,11 @@ void Application::render()
 	}
 	else if (what_to_display == DISPLAY_OBJECTS)
 	{
-		display_texture(tree_texture);
+		display_texture(surface_mask_tex);
 	}
 	else if (what_to_display == DISPLAY_DEPTH_TEXTURE)
 	{
-		display_texture(tree_texture);
+		display_texture(sky_depth_tex);
 	}
 	else if (what_to_display == DISPLAY_FINAL_IMAGE)
 	{
@@ -363,6 +453,7 @@ void Application::display_texture(GLuint texture)
 
 	// Use the proper program
 	display_texture_program.use();
+    display_texture_program.uniform("texture", 0);
 	// Binds the proper texture.
 	glBindTextureUnit(0, texture);
 

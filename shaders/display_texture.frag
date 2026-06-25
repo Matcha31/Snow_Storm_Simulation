@@ -22,5 +22,8 @@ layout (location = 0) out vec4 final_color;
 // ----------------------------------------------------------------------------
 void main()
 {
-	final_color = texture(input_tex, in_data.tex_coord);
+    // Grayscale only red channel
+    float value = texture(input_tex, in_data.tex_coord).r;
+    final_color = vec4(vec3(value), 1.0);
+    //final_color = texture(input_tex, in_data.tex_coord);
 }

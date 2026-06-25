@@ -27,11 +27,19 @@ Per frame:
 
 ## 1. Cloud mask
 
+Find where the paticules may spawn.
+
 - Add sky camera
 - Create cloud mask texture
 - Create frame buffer
 - Render cloud mask every frame
-- Connect debbug display
 
 ## 2. Top-down depth
 
+What is the first thing hit by a falling snow particule (terrain or object).
+
+- Create depth / mask shader to classify objects and terrain
+- Create depth buffer
+- Render terrain into depth buffer
+- Render one object into depth buffer
+- Make texture in grayscale in display (all red otherwise)
