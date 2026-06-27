@@ -25,7 +25,9 @@ Per frame:
 
 # Outline
 
-## 1. Cloud mask
+## 1. Masks
+
+### 1.1 Cloud mask
 
 Find where the paticules may spawn.
 
@@ -34,7 +36,7 @@ Find where the paticules may spawn.
 - Create frame buffer
 - Render cloud mask every frame
 
-## 2. Top-down depth
+## 1.2 Top-down depth
 
 What is the first thing hit by a falling snow particule (terrain or object).
 
@@ -43,3 +45,15 @@ What is the first thing hit by a falling snow particule (terrain or object).
 - Render terrain into depth buffer
 - Render one object into depth buffer
 - Make texture in grayscale in display (all red otherwise)
+
+## 3. Snow Particules
+
+## 1.1 Particule Buffer & Static Billboard
+
+- Create particles on the CPU
+- Send them to the GPU in an SSBO
+- Render each particle as a camera-facing quad
+- Use the snowflake/star texture
+- Respect depth with the scene
+- Show Snow checkbox
+- Particle Count combo

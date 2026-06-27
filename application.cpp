@@ -13,6 +13,7 @@ Application::Application(int initial_width, int initial_height, std::vector<std:
 	prepare_lights();
 	prepare_framebuffers();
 	prepare_scene();
+    prepare_particles();
 }
 
 Application::~Application()
@@ -25,6 +26,10 @@ Application::~Application()
     glDeleteFramebuffers(1, &depth_mask_fbo);
     glDeleteTextures(1, &sky_depth_tex);
     glDeleteTextures(1, &surface_mask_tex);
+
+    // Particles resources
+    glDeleteBuffers(1, &particle_buffer);
+    glDeleteVertexArrays(1, &particle_vao);
 }
 
 // ----------------------------------------------------------------------------
@@ -37,6 +42,11 @@ void Application::compile_shaders()
 	display_texture_program = ShaderProgram(lecture_shaders_path / "full_screen_quad.vert", lecture_shaders_path / "display_texture.frag");
     cloud_mask_program = ShaderProgram(lecture_shaders_path / "object.vert", lecture_shaders_path / "cloud_mask.frag");
     depth_mask_program = ShaderProgram(lecture_shaders_path / "object.vert", lecture_shaders_path / "depth_mask.frag");
+    // Particle program
+    particle_program.add_vertex_shader(lecture_shaders_path / "particle.vert");
+    particle_program.add_geometry_shader(lecture_shaders_path / "particle.geom");
+    particle_program.add_fragment_shader(lecture_shaders_path / "particle.frag");
+    particle_program.link();
 
 	std::cout << "Shaders are reloaded." << std::endl;
 }
@@ -181,6 +191,48 @@ void Application::prepare_scene()
 	light_object2 = SceneObject(sphere, ModelUBO(), white_material_ubo);
 }
 
+void Application::initialize_particles(int particle_count)
+{
+	std::vector<Particle> particles(particle_count);
+
+    // Deterministic distribution
+	std::mt19937 generator(0);
+    // For now we just use a square to check if it works
+    // Later we will use the cloud mask
+	std::uniform_real_distribution<float> position_distribution(-0.5f, 0.5f);
+	std::uniform_real_distribution<float> height_distribution(-2.0f, 2.0f);
+	std::uniform_real_distribution<float> delay_distribution(0.0f, 5.0f);
+
+    float elevation = 12.0f + cloud_size / 2.0f - 5.0f;
+    glm::vec3 base_position = glm::vec3(0.0f, elevation, 0.0f);
+    // glm::vec3 base_position = glm::vec3(0.0f, elevation - cloud_size * 0.75f, 0.0f);
+
+	for (int i = 0; i < particle_count; i++)
+	{
+		float x = position_distribution(generator) * cloud_size;
+		float y = height_distribution(generator);
+		float z = position_distribution(generator) * cloud_size;
+
+		particles[i].position = glm::vec4(base_position + glm::vec3(x, y, z), 1.0f);
+		particles[i].velocity_delay = glm::vec4(0.0f, -1.0f, 0.0f, delay_distribution(generator));
+        // For now all particles are released -> visible
+		particles[i].flags = glm::ivec4(0, 0, 1, 0);
+	}
+
+	glNamedBufferData(particle_buffer, particles.size() * sizeof(Particle), particles.data(), GL_DYNAMIC_DRAW);
+
+	current_snow_count = particle_count;
+}
+
+void Application::prepare_particles(){
+    // How OpenGL should interpret the data
+    glCreateVertexArrays(1, &particle_vao);
+    // Stores the data
+    glCreateBuffers(1, &particle_buffer);
+
+	initialize_particles(current_snow_count);
+}
+
 // ----------------------------------------------------------------------------
 // Update
 // ----------------------------------------------------------------------------
@@ -211,6 +263,13 @@ void Application::update(float delta)
 
 	light_object2.get_model_ubo().set_matrix(glm::translate(glm::mat4(1.0f), light_position2) * glm::scale(glm::mat4(1.0f), glm::vec3(0.2f)));
 	light_object2.get_model_ubo().update_opengl_data();
+
+    // Update desired snow count
+    if (desired_snow_count != current_snow_count)
+    {
+        current_snow_count = desired_snow_count;
+        initialize_particles(current_snow_count);
+    }
 
 	// Updates the OpenGL buffer storing the information about the light.
 	phong_lights_ubo.clear();
@@ -315,6 +374,32 @@ void Application::render_depth_pass()
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+void Application::render_particles()
+{
+    // Get main camera
+	camera_ubo.bind_buffer_base(CameraUBO::DEFAULT_CAMERA_BINDING);
+
+	particle_program.use();
+	particle_program.uniform("particle_size", 0.12f);
+	particle_program.uniform("particle_alpha", 0.65f);
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, particle_buffer);
+	glBindTextureUnit(0, particle_tex);
+	glBindVertexArray(particle_vao);
+
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // We test depth against object but should not write to the depth buffer
+    // Otherwise particles may be occluded by the ones in front
+	glDepthMask(GL_FALSE);
+
+    // One point per particle
+	glDrawArrays(GL_POINTS, 0, current_snow_count);
+
+	glDepthMask(GL_TRUE);
+	glDisable(GL_BLEND);
+}
 
 void Application::render()
 {
@@ -361,10 +446,16 @@ void Application::render()
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glEnable(GL_DEPTH_TEST);
 
+        // Opaque objects write deph first
 		render_scene_without_cloud(camera_ubo, false);
 		render_object(cloud_object, default_lit_program, false);
 		render_object(light_object1, default_unlit_program, false);
 		render_object(light_object2, default_unlit_program, false);
+
+        // Blended on top of opaque objects
+        if (show_snow){
+            render_particles();
+        }
 	}
 
 	// Resets the VAO and the program.

@@ -11,6 +11,15 @@
 #include "program.hpp"
 #include "pv227_application.hpp"
 #include "scene_object.hpp"
+#include <glm/ext/vector_int4.hpp>
+
+struct Particle {
+    // vec4 safer for GPU allignment (AI used to find this out)
+    // everything is 16-byte aligned : 3 * 16 = 48
+    glm::vec4 position; // xyz = wordspace, w = for projection
+    glm::vec4 velocity_delay; // xyz = velocity , w = delay
+    glm::ivec4 flags; // x = hit terrain, y = hit object, z = released, w = padding
+};
 
 class Application : public PV227Application
 {
@@ -89,18 +98,26 @@ protected:
 	ShaderProgram display_texture_program;
     ShaderProgram cloud_mask_program;
     ShaderProgram depth_mask_program;
+    ShaderProgram particle_program;
 
 	// ----------------------------------------------------------------------------
 	// Variables (Frame Buffers)
 	// ----------------------------------------------------------------------------
     GLuint cloud_mask_fbo;
     GLuint depth_mask_fbo;
+
+    // ----------------------------------------------------------------------------
+    // Variables (Buffers)
+    // ----------------------------------------------------------------------------
+    GLuint particle_buffer; // SSBO storing all particles
+    GLuint particle_vao; // empty VAO for particle rendering
 protected:
     // ----------------------------------------------------------------------------
     // Variables (Others)
     // ----------------------------------------------------------------------------
     int cloud_mask_reso = 1024;
     int sky_tex_reso = 1024;
+    float particle_size = 0.12f;
 
 	// ----------------------------------------------------------------------------
 	// Variables (GUI)
@@ -186,6 +203,11 @@ public:
 	/** Resizes the full screen textures match the window. */
 	void resize_fullscreen_textures();
 
+    void initialize_particles();
+
+    void prepare_particles();
+    void initialize_particles(int count);
+
 	// ----------------------------------------------------------------------------
 	// Update
 	// ----------------------------------------------------------------------------
@@ -224,6 +246,9 @@ public:
     /** Render depth mask */
     void render_depth_pass();
     void render_object_to_depth_pass(const SceneObject& object, float surface_value, bool render_as_patches) const;
+
+    /** Render particles */
+    void render_particles();
 
 	// ----------------------------------------------------------------------------
 	// GUI
