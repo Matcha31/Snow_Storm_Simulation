@@ -61,6 +61,7 @@ void Application::compile_shaders()
     particle_accumulation_program.link();
 
     blur_program = ShaderProgram(lecture_shaders_path / "full_screen_quad.vert", lecture_shaders_path / "blur.frag");
+    object_snow_program = ShaderProgram(lecture_shaders_path / "object.vert", lecture_shaders_path / "object_snow.frag");
 
 	std::cout << "Shaders are reloaded." << std::endl;
 }
@@ -642,14 +643,14 @@ void Application::render()
 
 void Application::render_scene_without_cloud(CameraUBO& camera, bool depth_pass)
 {
-	camera_ubo.bind_buffer_base(CameraUBO::DEFAULT_CAMERA_BINDING); 
+	camera.bind_buffer_base(CameraUBO::DEFAULT_CAMERA_BINDING); 
 	phong_lights_ubo.bind_buffer_base(CameraUBO::DEFAULT_LIGHTS_BINDING);
 
 	glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
 	
-	for (auto& tree_object : scene_objects)
+	for (auto& object : scene_objects)
 	{
-		render_object(tree_object, default_lit_program, false);
+		render_object_with_snow(object);
 	}
 	render_object(snow_terrain_object, default_lit_program, false);
 
@@ -694,6 +695,27 @@ void Application::render_object(const SceneObject& object, const ShaderProgram& 
 		// Calls the standard rendering function if we do not require patches.
 		object.get_geometry().draw();
 	}
+}
+
+void Application::render_object_with_snow(const SceneObject& object) const
+{
+	object_snow_program.use();
+
+	object_snow_program.uniform("has_texture", object.has_texture());
+	object_snow_program.uniform("object_snow_strength", 2.5f);
+	object_snow_program.uniform("object_snow_max", 0.95f);
+	object_snow_program.uniform("top_occlusion_bias", 0.003f);
+
+	glBindTextureUnit(0, object.has_texture() ? object.get_texture() : 0);
+	glBindTextureUnit(1, accumulation_tex);
+	glBindTextureUnit(2, sky_depth_tex);
+
+	sky_camera_ubo.bind_buffer_base(5);
+
+	object.get_model_ubo().bind_buffer_base(ModelUBO::DEFAULT_MODEL_BINDING);
+	object.get_material().bind_buffer_base(PhongMaterialUBO::DEFAULT_MATERIAL_BINDING);
+	object.get_geometry().bind_vao();
+	object.get_geometry().draw();
 }
 
 void Application::display_texture(GLuint texture, int channel)

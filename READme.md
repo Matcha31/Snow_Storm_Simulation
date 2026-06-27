@@ -85,6 +85,11 @@ Find where the paticules may spawn.
 
 - 
 
+### 4.3 Whitening Effect on Objects
+
+
+## 5. Tesselation Snow Cover
+
 -- 
 ### AI Use
 

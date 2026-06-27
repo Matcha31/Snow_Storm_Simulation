@@ -106,6 +106,7 @@ protected:
     ShaderProgram particle_update_program;
     ShaderProgram particle_accumulation_program;
     ShaderProgram blur_program;
+    ShaderProgram object_snow_program;
 
 	// ----------------------------------------------------------------------------
 	// Variables (Frame Buffers)
@@ -252,6 +253,7 @@ public:
 
 	/** Renders the specified object. */
 	void render_object(const SceneObject& object, const ShaderProgram& program, bool render_as_patches) const;
+    void render_object_with_snow(const SceneObject& object) const;
 
 	/** Clears the accumulated snow. */
 	void clear_accumulated_snow();
