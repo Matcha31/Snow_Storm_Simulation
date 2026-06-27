@@ -31,42 +31,34 @@ Per frame:
 
 Find where the paticules may spawn.
 
-- Add sky camera
-- Create cloud mask texture
-- Create frame buffer
-- Render cloud mask every frame
+- Create sky camera
+- Render cloud into off screen texture
+- Store cloud projection as B&W texture
+- Use it as valib snow spawn area
 
 ## 1.2 Top-down depth
 
-What is the first thing hit by a falling snow particule (terrain or object).
-
-- Create depth / mask shader to classify objects and terrain
-- Create depth buffer
-- Render terrain into depth buffer
-- Render one object into depth buffer
-- Make texture in grayscale in display (all red otherwise)
+- Render scene from sky camera into top-down depth texture
+- Exclude cloud and particles
+- Differentiate terrain and objects in mask texture
 
 ## 3. Snow Particules
 
-### 3.1 Particule Buffer & Static Billboard
+### 3.1 Initialization & Rendering
 
-- Create particles on the CPU
-- Send them to the GPU in an SSBO
-- Render each particle as a camera-facing quad
-- Use the snowflake/star texture
-- Respect depth with the scene
-- Show Snow checkbox
-- Particle Count combo
+- Store particles in SSBO
+- Draw one point per particle and expand it into a billboard quad
+- Make the face the camera
+- Sample snowflakes texture into frag shader
+- Render it with blending and depth test
 
 ### 3.2 GPU Update & Release
 
-- Start unreleased and invisible
-- Wait for their delay
-- Try random positions around the cloud
-- Sample the cloud mask
-- Release only if they are inside the projected cloud and delay is over
-- Fall with gravity once released
-- Reset when they reach the ground for now
+- Update particles on GPU
+- Keep unreleased until delay expires
+- Randomize candidate spawn positions inside cloud mask
+- Project into sky space and release inside cloud mask
+- Apply gravity
 
 ### 3.3 Depth Collision & Hit Classification
 
@@ -76,6 +68,22 @@ What is the first thing hit by a falling snow particule (terrain or object).
 - If particle is below the stored surface depth -> collision
 - Bounce using reconstructed surface normal
 - If velocity becomes low -> mark as hit terrain/object
+
+## 4. Particule Accumulation
+
+### 4.1 Accumulation Texture
+
+- Keep stopped particles as hit terrain or object
+- Render them from sky camera
+- Write impact into accumulation texture
+- Store terrain in R, object in G
+- Blend with previous frame
+- Reset accumated particles
+- Clear accumulation texture when clicking clear snow
+
+### 4.2 Blur Accumulation Texture
+
+- 
 
 -- 
 ### AI Use

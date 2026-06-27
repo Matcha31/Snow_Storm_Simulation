@@ -151,15 +151,12 @@ void mark_stopped_particle(inout Particle particle, vec2 sky_uv) {
     float surface_value = texture(surface_mask_texture, sky_uv).r;
 
     if (surface_value > 0.75){
-        particle.flags.x = 0;
-        particle.flags.y = 1;
+        particle.flags = ivec4(0, 1, 1, 0);
     }
     else {
-        particle.flags.x = 1;
-        particle.flags.y = 0;
+        particle.flags = ivec4(1, 0, 1, 0);
     }
 
-    particle.flags.z = 1;
     particle.velocity_delay.xyz = vec3(0.0);
 }
 

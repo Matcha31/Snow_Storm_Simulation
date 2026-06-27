@@ -1,5 +1,6 @@
 #include "application.hpp"
 #include "opengl_object.hpp"
+#include "program.hpp"
 #include "utils.hpp"
 #include <map>
 #include <random>
@@ -30,6 +31,11 @@ Application::~Application()
     // Particles resources
     glDeleteBuffers(1, &particle_buffer);
     glDeleteVertexArrays(1, &particle_vao);
+    glDeleteFramebuffers(1, &accumulation_fbo);
+    glDeleteTextures(1, &accumulation_tex);
+
+    glDeleteFramebuffers(1, &accumulation_blur_fbo);
+    glDeleteTextures(1, &accumulation_blur_tex);
 }
 
 // ----------------------------------------------------------------------------
@@ -43,12 +49,18 @@ void Application::compile_shaders()
     cloud_mask_program = ShaderProgram(lecture_shaders_path / "object.vert", lecture_shaders_path / "cloud_mask.frag");
     depth_mask_program = ShaderProgram(lecture_shaders_path / "object.vert", lecture_shaders_path / "depth_mask.frag");
     // Particle programs
-    particle_program.add_vertex_shader(lecture_shaders_path / "particle.vert");
+    particle_program.add_vertex_shader(lecture_shaders_path /   "particle.vert");
     particle_program.add_geometry_shader(lecture_shaders_path / "particle.geom");
     particle_program.add_fragment_shader(lecture_shaders_path / "particle.frag");
     particle_program.link();
     particle_update_program.add_compute_shader(lecture_shaders_path / "particle_update.comp");
     particle_update_program.link();
+    particle_accumulation_program.add_vertex_shader(lecture_shaders_path /   "particle_accumulation.vert");
+    particle_accumulation_program.add_geometry_shader(lecture_shaders_path / "particle_accumulation.geom");
+    particle_accumulation_program.add_fragment_shader(lecture_shaders_path / "particle_accumulation.frag");
+    particle_accumulation_program.link();
+
+    blur_program = ShaderProgram(lecture_shaders_path / "full_screen_quad.vert", lecture_shaders_path / "blur.frag");
 
 	std::cout << "Shaders are reloaded." << std::endl;
 }
@@ -64,7 +76,7 @@ void Application::prepare_cameras()
 	camera_ubo.update_opengl_data();
 
     // 26x26-> 13,-13 + small margin : 15,-15
-    sky_camera_ubo.set_projection(glm::ortho(-15.f, 15.f, -15.f, 15.f, 0.1f, 50.f));
+    sky_camera_ubo.set_projection(glm::ortho(-15.f, 15.f, -15.f, 15.f, 0.1f, 60.f));
     // Looking from above the scene
     sky_camera_ubo.set_view(glm::lookAt(glm::vec3(0.0f, 50.0f, 0.0f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, -1.0f)));
     sky_camera_ubo.update_opengl_data();
@@ -150,10 +162,52 @@ void Application::prepare_framebuffers()
     glNamedFramebufferDrawBuffers(depth_mask_fbo, 1, draw_buffers);
     glNamedFramebufferReadBuffer(depth_mask_fbo, GL_COLOR_ATTACHMENT0);
 
+    const GLfloat clear_color[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    glClearNamedFramebufferfv(accumulation_fbo, GL_COLOR, 0, clear_color);
+
     if (glCheckNamedFramebufferStatus(depth_mask_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     {
         throw std::runtime_error("Depth mask framebuffer is incomplete.");
     }
+
+    // Accumulation
+    glCreateTextures(GL_TEXTURE_2D, 1, &accumulation_tex);
+    // 2 floating points channels : many can accumulate on the same area
+    glTextureStorage2D(accumulation_tex, 1, GL_RG32F, sky_tex_reso, sky_tex_reso);
+    glTextureParameteri(accumulation_tex, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(accumulation_tex, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTextureParameteri(accumulation_tex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(accumulation_tex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glCreateFramebuffers(1, &accumulation_fbo);
+    glNamedFramebufferTexture(accumulation_fbo, GL_COLOR_ATTACHMENT0, accumulation_tex, 0);
+    glNamedFramebufferDrawBuffers(accumulation_fbo, 1, draw_buffers);
+    glNamedFramebufferReadBuffer(accumulation_fbo, GL_COLOR_ATTACHMENT0);
+
+    if (glCheckNamedFramebufferStatus(accumulation_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    {
+        throw std::runtime_error("Accumulation framebuffer is incomplete.");
+    }
+
+    // Blurring 
+    glCreateTextures(GL_TEXTURE_2D, 1, &accumulation_blur_tex);
+    glTextureStorage2D(accumulation_blur_tex, 1, GL_RG32F, sky_tex_reso, sky_tex_reso);
+    glTextureParameteri(accumulation_blur_tex, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(accumulation_blur_tex, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTextureParameteri(accumulation_blur_tex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(accumulation_blur_tex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glCreateFramebuffers(1, &accumulation_blur_fbo);
+    glNamedFramebufferTexture(accumulation_blur_fbo, GL_COLOR_ATTACHMENT0, accumulation_blur_tex, 0);
+    glNamedFramebufferDrawBuffers(accumulation_blur_fbo, 1, draw_buffers);
+    glNamedFramebufferReadBuffer(accumulation_blur_fbo, GL_COLOR_ATTACHMENT0);
+
+    if (glCheckNamedFramebufferStatus(accumulation_blur_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    {
+        throw std::runtime_error("Accumulation blur framebuffer is incomplete.");
+    }
+
+    glClearNamedFramebufferfv(accumulation_blur_fbo, GL_COLOR, 0, clear_color);
 }
 
 void Application::resize_fullscreen_textures()
@@ -276,6 +330,73 @@ void Application::update_particles(float delta)
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); // Sync
 
 	particle_frame_index++;
+}
+
+void Application::accumulate_particles()
+{
+	if (current_snow_count <= 0)
+	{
+		return;
+	}
+
+	float sky_world_size = 30.0f;
+	float texel_world_size = sky_world_size / static_cast<float>(sky_tex_reso);
+	float accumulation_particle_size = 2.0f * impact_radius * texel_world_size;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, accumulation_fbo);
+	glViewport(0, 0, sky_tex_reso, sky_tex_reso);
+
+	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendEquation(GL_FUNC_ADD);
+	glBlendFunc(GL_ONE, GL_ONE);
+
+	sky_camera_ubo.bind_buffer_base(CameraUBO::DEFAULT_CAMERA_BINDING);
+
+	particle_accumulation_program.use();
+	particle_accumulation_program.uniform("accumulation_particle_size", accumulation_particle_size);
+	particle_accumulation_program.uniform("frame_index", particle_frame_index);
+	particle_accumulation_program.uniform("max_delay", 5.0f);
+	particle_accumulation_program.uniform("accumulation_strength", 0.02f);
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, particle_buffer);
+	glBindTextureUnit(0, circle_tex);
+	glBindVertexArray(particle_vao);
+
+	glDrawArrays(GL_POINTS, 0, current_snow_count);
+
+	glDisable(GL_BLEND);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT | GL_FRAMEBUFFER_BARRIER_BIT);
+}
+
+void Application::blur_accumulation_texture()
+{
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+
+	blur_program.use();
+	glBindVertexArray(empty_vao);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, accumulation_blur_fbo);
+	glViewport(0, 0, sky_tex_reso, sky_tex_reso);
+	glBindTextureUnit(0, accumulation_tex);
+	blur_program.uniform("direction", glm::vec2(1.0f / static_cast<float>(sky_tex_reso), 0.0f)); // horizontal
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+
+	glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_FRAMEBUFFER_BARRIER_BIT);
+
+    // Same shadder for both passes
+	glBindFramebuffer(GL_FRAMEBUFFER, accumulation_fbo);
+	glViewport(0, 0, sky_tex_reso, sky_tex_reso);
+	glBindTextureUnit(0, accumulation_blur_tex);
+	blur_program.uniform("direction", glm::vec2(0.0f, 1.0f / static_cast<float>(sky_tex_reso))); // vertical
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_FRAMEBUFFER_BARRIER_BIT);
 }
 
 void Application::update(float delta)
@@ -462,15 +583,15 @@ void Application::render()
 	}
 	else if (what_to_display == DISPLAY_SNOW_MASK_TERRAIN)
 	{
-		display_texture(tree_texture);
+		display_texture(accumulation_tex, 0);
 	}
 	else if (what_to_display == DISPLAY_SNOW_MASK_OBJECTS)
 	{
-		display_texture(tree_texture);
+		display_texture(accumulation_tex, 1);
 	}
 	else if (what_to_display == DISPLAY_ACCUMULATED)
 	{
-		display_texture(tree_texture);
+		display_texture(accumulation_tex, -1);
 	}
 	else if (what_to_display == DISPLAY_OBJECTS)
 	{
@@ -500,6 +621,8 @@ void Application::render()
         if (show_snow){
             render_particles();
             update_particles(frame_delta);
+            accumulate_particles();
+            blur_accumulation_texture();
         }
 	}
 	glBindVertexArray(0);
@@ -573,7 +696,7 @@ void Application::render_object(const SceneObject& object, const ShaderProgram& 
 	}
 }
 
-void Application::display_texture(GLuint texture)
+void Application::display_texture(GLuint texture, int channel)
 {
 	// Binds the main window framebuffer.
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -588,6 +711,7 @@ void Application::display_texture(GLuint texture)
 	// Use the proper program
 	display_texture_program.use();
     display_texture_program.uniform("texture", 0);
+    display_texture_program.uniform("display_channel", channel);
 	// Binds the proper texture.
 	glBindTextureUnit(0, texture);
 
@@ -600,6 +724,11 @@ void Application::display_texture(GLuint texture)
 
 void Application::clear_accumulated_snow()
 {
+	const GLfloat clear_color[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+	glClearNamedFramebufferfv(accumulation_fbo, GL_COLOR, 0, clear_color);
+    glClearNamedFramebufferfv(accumulation_blur_fbo, GL_COLOR, 0, clear_color);
+
+	initialize_particles(current_snow_count);
 }
 
 // ----------------------------------------------------------------------------

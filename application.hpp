@@ -69,11 +69,14 @@ protected:
 	GLuint farmhouse_tex;
 	/** The tree texture */
 	GLuint tree_texture;
+
     /** The cloud mask texture */
     GLuint cloud_mask_tex;
     /** The depth mask texture */
     GLuint sky_depth_tex;
     GLuint surface_mask_tex;
+    GLuint accumulation_tex;
+    GLuint accumulation_blur_tex;
 
 	// ----------------------------------------------------------------------------
 	// Variables (Light)
@@ -96,16 +99,21 @@ protected:
 protected:
 	/** The program for rendering textures. */
 	ShaderProgram display_texture_program;
+
     ShaderProgram cloud_mask_program;
     ShaderProgram depth_mask_program;
     ShaderProgram particle_program;
     ShaderProgram particle_update_program;
+    ShaderProgram particle_accumulation_program;
+    ShaderProgram blur_program;
 
 	// ----------------------------------------------------------------------------
 	// Variables (Frame Buffers)
 	// ----------------------------------------------------------------------------
     GLuint cloud_mask_fbo;
     GLuint depth_mask_fbo;
+    GLuint accumulation_fbo;
+    GLuint accumulation_blur_fbo;
 
     // ----------------------------------------------------------------------------
     // Variables (Buffers)
@@ -226,6 +234,9 @@ public:
 
     void update_particles(float delta);
 
+    void accumulate_particles();
+    void blur_accumulation_texture();
+
 	// ----------------------------------------------------------------------------
 	// Render
 	// ----------------------------------------------------------------------------
@@ -237,7 +248,7 @@ public:
 	void render_scene_without_cloud(CameraUBO& camera, bool depth_pass);
 
 	/** Renders the specified texture over the whole screen. */
-	void display_texture(GLuint texture);
+	void display_texture(GLuint texture, int channel = 0);
 
 	/** Renders the specified object. */
 	void render_object(const SceneObject& object, const ShaderProgram& program, bool render_as_patches) const;
