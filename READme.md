@@ -48,7 +48,7 @@ What is the first thing hit by a falling snow particule (terrain or object).
 
 ## 3. Snow Particules
 
-## 1.1 Particule Buffer & Static Billboard
+### 3.1 Particule Buffer & Static Billboard
 
 - Create particles on the CPU
 - Send them to the GPU in an SSBO
@@ -57,3 +57,28 @@ What is the first thing hit by a falling snow particule (terrain or object).
 - Respect depth with the scene
 - Show Snow checkbox
 - Particle Count combo
+
+### 3.2 GPU Update & Release
+
+- Start unreleased and invisible
+- Wait for their delay
+- Try random positions around the cloud
+- Sample the cloud mask
+- Release only if they are inside the projected cloud and delay is over
+- Fall with gravity once released
+- Reset when they reach the ground for now
+
+### 3.3 Depth Collision & Hit Classification
+
+- Project particle into sky space
+- Sample top-down depth texture
+- Compare particle depth with scene depth
+- If particle is below the stored surface depth -> collision
+- Bounce using reconstructed surface normal
+- If velocity becomes low -> mark as hit terrain/object
+
+-- 
+### AI Use
+
+- Find vec4 for particles attributes to have aligned GPU memory
+- Create rndom number generator in GLSL

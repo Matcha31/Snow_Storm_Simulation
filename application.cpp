@@ -42,11 +42,13 @@ void Application::compile_shaders()
 	display_texture_program = ShaderProgram(lecture_shaders_path / "full_screen_quad.vert", lecture_shaders_path / "display_texture.frag");
     cloud_mask_program = ShaderProgram(lecture_shaders_path / "object.vert", lecture_shaders_path / "cloud_mask.frag");
     depth_mask_program = ShaderProgram(lecture_shaders_path / "object.vert", lecture_shaders_path / "depth_mask.frag");
-    // Particle program
+    // Particle programs
     particle_program.add_vertex_shader(lecture_shaders_path / "particle.vert");
     particle_program.add_geometry_shader(lecture_shaders_path / "particle.geom");
     particle_program.add_fragment_shader(lecture_shaders_path / "particle.frag");
     particle_program.link();
+    particle_update_program.add_compute_shader(lecture_shaders_path / "particle_update.comp");
+    particle_update_program.link();
 
 	std::cout << "Shaders are reloaded." << std::endl;
 }
@@ -197,11 +199,7 @@ void Application::initialize_particles(int particle_count)
 
     // Deterministic distribution
 	std::mt19937 generator(0);
-    // For now we just use a square to check if it works
-    // Later we will use the cloud mask
-	std::uniform_real_distribution<float> position_distribution(-0.5f, 0.5f);
-	std::uniform_real_distribution<float> height_distribution(-2.0f, 2.0f);
-	std::uniform_real_distribution<float> delay_distribution(0.0f, 5.0f);
+    std::uniform_real_distribution<float> delay_distribution(0.0f, 5.0f);
 
     float elevation = 12.0f + cloud_size / 2.0f - 5.0f;
     glm::vec3 base_position = glm::vec3(0.0f, elevation, 0.0f);
@@ -209,14 +207,10 @@ void Application::initialize_particles(int particle_count)
 
 	for (int i = 0; i < particle_count; i++)
 	{
-		float x = position_distribution(generator) * cloud_size;
-		float y = height_distribution(generator);
-		float z = position_distribution(generator) * cloud_size;
-
-		particles[i].position = glm::vec4(base_position + glm::vec3(x, y, z), 1.0f);
-		particles[i].velocity_delay = glm::vec4(0.0f, -1.0f, 0.0f, delay_distribution(generator));
-        // For now all particles are released -> visible
-		particles[i].flags = glm::ivec4(0, 0, 1, 0);
+		particles[i].position = glm::vec4(base_position, 1.0f);
+		particles[i].velocity_delay = glm::vec4(0.0f, 0.0f, 0.0f, delay_distribution(generator));
+        // Set to unreleased : they are just candidates
+		particles[i].flags = glm::ivec4(0, 0, 0, 0);
 	}
 
 	glNamedBufferData(particle_buffer, particles.size() * sizeof(Particle), particles.data(), GL_DYNAMIC_DRAW);
@@ -236,9 +230,59 @@ void Application::prepare_particles(){
 // ----------------------------------------------------------------------------
 // Update
 // ----------------------------------------------------------------------------
+void Application::update_particles(float delta)
+{
+	if (current_snow_count <= 0) {
+		return;
+	}
+
+    // Simulation time step
+    // If delta is too large -> unstable
+    // So we clamp it
+    float max_simulation_delta = 0.033f; // ~30 FPS
+    // Slow snow down visually
+    float simulation_speed = 0.35f; // Tuned myself
+	float simulation_delta = std::min(delta, max_simulation_delta) * simulation_speed;
+
+    // Update particles position
+	particle_update_program.use();
+	particle_update_program.uniform("particle_count", current_snow_count);
+	particle_update_program.uniform("delta_time", simulation_delta);
+	particle_update_program.uniform("frame_index", particle_frame_index);
+	particle_update_program.uniform("cloud_world_position", cloud_world_position);
+	particle_update_program.uniform("cloud_size", cloud_size);
+	particle_update_program.uniform("gravity", glm::vec3(0.0f, -9.81f, 0.0f));
+	particle_update_program.uniform("reset_y", 0.0f);
+	particle_update_program.uniform("spawn_height_range", 1.0f); // thickness of spawn volume
+	particle_update_program.uniform("initial_fall_speed", 0.8f);
+	particle_update_program.uniform("max_delay", 5.0f);
+    particle_update_program.uniform("kill_y", -5.0f); 
+    particle_update_program.uniform("collision_bias", 0.002f); // coll slightly before
+	particle_update_program.uniform("collision_offset", 0.04f); // push slightly above
+	particle_update_program.uniform("restitution", 0.12f); // bounciness
+	particle_update_program.uniform("stop_speed", 0.35f); 
+
+    // Need sky camera matrix to compute if in cloud mask
+	sky_camera_ubo.bind_buffer_base(CameraUBO::DEFAULT_CAMERA_BINDING);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, particle_buffer);
+	glBindTextureUnit(0, cloud_mask_tex);
+    glBindTextureUnit(1, surface_mask_tex);
+    glBindTextureUnit(2, sky_depth_tex);
+
+    // Launch multiple work groups
+	GLuint work_group_count = static_cast<GLuint>((current_snow_count + 255) / 256);
+	glDispatchCompute(work_group_count, 1, 1); // launch
+
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); // Sync
+
+	particle_frame_index++;
+}
+
 void Application::update(float delta)
 {
 	PV227Application::update(delta);
+    // Time btw frames
+    frame_delta = delta;
 
 	// Updates the main camera.
 	const glm::vec3 eye_position = camera.get_eye_position();
@@ -455,10 +499,9 @@ void Application::render()
         // Blended on top of opaque objects
         if (show_snow){
             render_particles();
+            update_particles(frame_delta);
         }
 	}
-
-	// Resets the VAO and the program.
 	glBindVertexArray(0);
 	glUseProgram(0);
 

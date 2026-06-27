@@ -99,6 +99,7 @@ protected:
     ShaderProgram cloud_mask_program;
     ShaderProgram depth_mask_program;
     ShaderProgram particle_program;
+    ShaderProgram particle_update_program;
 
 	// ----------------------------------------------------------------------------
 	// Variables (Frame Buffers)
@@ -118,6 +119,8 @@ protected:
     int cloud_mask_reso = 1024;
     int sky_tex_reso = 1024;
     float particle_size = 0.12f;
+    float frame_delta = 0.0f;
+    int particle_frame_index = 0;
 
 	// ----------------------------------------------------------------------------
 	// Variables (GUI)
@@ -220,6 +223,8 @@ public:
 	 * Updates the cloud location.
 	 */
 	void update_cloud_location();
+
+    void update_particles(float delta);
 
 	// ----------------------------------------------------------------------------
 	// Render

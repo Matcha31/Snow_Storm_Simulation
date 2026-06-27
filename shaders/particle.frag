@@ -1,7 +1,6 @@
 #version 450 core
 
-in ParticleQuadData
-{
+in ParticleQuadData {
 	vec2 tex_coord;
 } in_data;
 
@@ -11,8 +10,7 @@ uniform float particle_alpha;
 
 layout(location = 0) out vec4 final_color;
 
-void main()
-{
+void main() {
 	vec4 texel = texture(particle_texture, in_data.tex_coord);
 
     // Make black part transparent
