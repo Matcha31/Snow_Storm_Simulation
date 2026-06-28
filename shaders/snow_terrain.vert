@@ -18,6 +18,9 @@ out VertexData
 	vec2 tex_coord;
 } out_data;
 
+// Same as object.vert without gl_Position
+// No longer the final stage that places the vertex on the screen
+// Prepares original triangle vertices
 void main()
 {
 	out_data.position_ws = vec3(model * position);

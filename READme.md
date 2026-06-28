@@ -90,7 +90,18 @@ Find where the paticules may spawn.
 
 ## 5. Tesselation Snow Cover
 
-### 5.1 Detailed Terrain Mesh
+### 5.1 Tesselation Terrain Mesh
+
+- Get barycentric coordinates of original triangle
+- Get tessellated vertices in tessellation shader
+- Add displacement
+- Make displacement and tessellation level editable
+
+### 5.2  Displacement from Accumulation Texture
+
+- Read accumulated particles from accumulation texture
+- Compute displacement
+- Apply displacement to terrain mesh
 
 -- 
 ### AI Use

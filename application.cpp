@@ -578,6 +578,13 @@ void Application::render_snow_terrain()
 	snow_terrain_program.use();
 	snow_terrain_program.uniform("tessellation_level", snow_tessellation_level);
 	snow_terrain_program.uniform("debug_displacement", debug_snow_displacement);
+    snow_terrain_program.uniform("snow_height_scale", snow_height_scale);
+	snow_terrain_program.uniform("max_snow_height", max_snow_height);
+	snow_terrain_program.uniform("terrain_edge_width", terrain_edge_width);
+	snow_terrain_program.uniform("use_accumulation_displacement", use_accumulation_displacement);
+
+    sky_camera_ubo.bind_buffer_base(5); // Binding expected by tesselation shader
+    glBindTextureUnit(1, accumulation_tex);
 
 	render_object(snow_terrain_object, snow_terrain_program, true);
 }
@@ -807,6 +814,11 @@ void Application::render_ui()
     ImGui::Checkbox("Tessellated Terrain", &use_tessellated_terrain);
     ImGui::SliderFloat("Tess Level", &snow_tessellation_level, 1.0f, 64.0f);
     ImGui::SliderFloat("Debug Snow Height", &debug_snow_displacement, 0.0f, 1.0f);
+
+    ImGui::Checkbox("Accumulation Height", &use_accumulation_displacement);
+    ImGui::SliderFloat("Snow Height Scale", &snow_height_scale, 0.0f, 5.0f);
+    ImGui::SliderFloat("Max Snow Height", &max_snow_height, 0.0f, 2.0f);
+    ImGui::SliderFloat("Terrain Edge Width", &terrain_edge_width, 0.0f, 0.05f);
 
 	const char* particle_labels[10] = {"256", "512", "1024", "2048", "4096", "8192", "16384", "32768", "65536", "131072"};
 	int exponent = static_cast<int>(log2(current_snow_count) - 8);	  // -8 because we start at 256 = 2^8

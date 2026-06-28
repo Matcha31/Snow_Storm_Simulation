@@ -132,8 +132,7 @@ protected:
     float frame_delta = 0.0f;
     int particle_frame_index = 0;
     bool use_tessellated_terrain = true;
-    float snow_tessellation_level = 16.0f;
-    float debug_snow_displacement = 0.0f;
+    float terrain_edge_width = 0.002f;
 
 	// ----------------------------------------------------------------------------
 	// Variables (GUI)
@@ -153,6 +152,12 @@ protected:
 
 	/** The flag determining if a snow should be visible. */
 	bool show_snow = true;
+
+    float snow_height_scale = 0.8f;
+    float max_snow_height = 0.75f;
+    bool use_accumulation_displacement = true;
+    float snow_tessellation_level = 16.0f;
+    float debug_snow_displacement = 0.0f;
 
 	/** The constants identifying what can be displayed on the screen. */
 	const int DISPLAY_CLOUD_MASK = 0;

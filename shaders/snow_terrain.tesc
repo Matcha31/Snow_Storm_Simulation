@@ -2,6 +2,7 @@
 
 layout(vertices = 3) out;
 
+// Recieved triangle patch
 in VertexData
 {
 	vec3 position_ws;
@@ -16,6 +17,7 @@ out VertexData
 	vec2 tex_coord;
 } out_data[];
 
+// How much to subdivide the triangle
 uniform float tessellation_level;
 
 void main()

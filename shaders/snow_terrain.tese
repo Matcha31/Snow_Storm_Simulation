@@ -12,6 +12,17 @@ layout(std140, binding = 0) uniform CameraBuffer
 	vec3 eye_position;
 } camera;
 
+layout(std140, binding = 5) uniform SkyCameraBuffer
+{
+	mat4 projection;
+	mat4 projection_inv;
+	mat4 view;
+	mat4 view_inv;
+	mat3 view_it;
+	vec3 eye_position;
+} sky_camera;
+
+// Original triangle
 in VertexData
 {
 	vec3 position_ws;
@@ -19,6 +30,7 @@ in VertexData
 	vec2 tex_coord;
 } in_data[];
 
+// New tesselated vertex
 out VertexData
 {
 	vec3 position_ws;
@@ -26,12 +38,56 @@ out VertexData
 	vec2 tex_coord;
 } out_data;
 
-uniform float debug_displacement;
+layout(binding = 1) uniform sampler2D accumulation_texture;
+
+uniform float debug_displacement; // Snow height for debug
+uniform float snow_height_scale;
+uniform float max_snow_height;
+uniform float terrain_edge_width;
+uniform bool use_accumulation_displacement;
+
+vec3 world_to_sky_position(vec3 position_ws)
+{
+	vec4 sky_position = sky_camera.projection * sky_camera.view * vec4(position_ws, 1.0);
+	sky_position.xyz /= sky_position.w;
+	return sky_position.xyz * 0.5 + 0.5;
+}
+
+bool uv_inside_texture(vec2 uv)
+{
+	return uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
+}
+
+// Check if the vertex is on the edge of the terrain
+bool is_terrain_edge(vec2 tex_coord)
+{
+	return tex_coord.x <= terrain_edge_width ||
+		   tex_coord.x >= 1.0 - terrain_edge_width ||
+		   tex_coord.y <= terrain_edge_width ||
+		   tex_coord.y >= 1.0 - terrain_edge_width;
+}
+
+// Get accumulated snow amount wit accumulation texture
+float sample_accumulated_height(vec3 position_ws)
+{
+	vec3 sky_position = world_to_sky_position(position_ws);
+	vec2 sky_uv = sky_position.xy;
+
+	if (!uv_inside_texture(sky_uv)) {
+		return 0.0;
+	}
+
+	float accumulated_snow = texture(accumulation_texture, sky_uv).r;
+	float height = accumulated_snow * snow_height_scale;
+	return clamp(height, 0.0, max_snow_height);
+}
 
 void main()
 {
+    // Barycentric coordinates of original triangle
 	vec3 barycentric = gl_TessCoord;
 
+    // Get new tesselated vertex data
 	vec3 position_ws =
 		barycentric.x * in_data[0].position_ws +
 		barycentric.y * in_data[1].position_ws +
@@ -48,11 +104,22 @@ void main()
 		barycentric.y * in_data[1].tex_coord +
 		barycentric.z * in_data[2].tex_coord;
 
-	position_ws.y += debug_displacement;
+    // Compute height
+	float height = debug_displacement;
+
+	if (use_accumulation_displacement) {
+		height += sample_accumulated_height(position_ws);
+	}
+	if (is_terrain_edge(tex_coord)) {
+		height = 0.0;
+	}
+
+	position_ws.y += height;
 
 	out_data.position_ws = position_ws;
 	out_data.normal_ws = normal_ws;
 	out_data.tex_coord = tex_coord;
 
+    // Place the new vertex on the screen
 	gl_Position = camera.projection * camera.view * vec4(position_ws, 1.0);
 }
