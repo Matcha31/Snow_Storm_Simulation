@@ -1,6 +1,7 @@
 #version 450 core
 
-layout(triangles, equal_spacing, ccw) in;
+// Round up tessellation level
+layout(triangles, equal_spacing, ccw) in; 
 
 layout(std140, binding = 0) uniform CameraBuffer
 {
@@ -30,7 +31,7 @@ in VertexData
 	vec2 tex_coord;
 } in_data[];
 
-// New tesselated vertex
+// New tessellated vertex
 out VertexData
 {
 	vec3 position_ws;
@@ -51,8 +52,11 @@ uniform float height_texture_strength; // How much we vary
 
 vec3 world_to_sky_position(vec3 position_ws)
 {
+    // Clip space coord
 	vec4 sky_position = sky_camera.projection * sky_camera.view * vec4(position_ws, 1.0);
+    // Pespective divide
 	sky_position.xyz /= sky_position.w;
+    // Convert from [-1, 1] to [0, 1]
 	return sky_position.xyz * 0.5 + 0.5;
 }
 
@@ -80,13 +84,13 @@ float sample_accumulated_height(vec3 position_ws, vec2 tex_coord)
 		return 0.0;
 	}
 
+    // Accumulated snow = height
 	float accumulated_snow = texture(accumulation_texture, sky_uv).r;
 	float height = accumulated_snow * snow_height_scale;
 
-    // Vary height
+    // Vary height using snow height texture
     float height_sample = texture(snow_height_texture, tex_coord * height_texture_tiling).r;
 	float height_variation = mix(1.0, 0.75 + height_sample * 0.5, height_texture_strength);
-
 	height *= height_variation;
 
 	return clamp(height, 0.0, max_snow_height);
@@ -97,7 +101,7 @@ void main()
     // Barycentric coordinates of original triangle
 	vec3 barycentric = gl_TessCoord;
 
-    // Get new tesselated vertex data
+    // Reconstruct new tessellated vertex data
 	vec3 position_ws =
 		barycentric.x * in_data[0].position_ws +
 		barycentric.y * in_data[1].position_ws +
@@ -116,14 +120,13 @@ void main()
 
     // Compute height
 	float height = debug_displacement;
-
 	if (use_accumulation_displacement) {
 		height += sample_accumulated_height(position_ws, tex_coord);
 	}
+    // Prevent terrain edge displacement
 	if (is_terrain_edge(tex_coord)) {
 		height = 0.0;
 	}
-
 	position_ws.y += height;
 
 	out_data.position_ws = position_ws;

@@ -132,14 +132,18 @@ protected:
     float particle_size = 0.12f;
     float frame_delta = 0.0f;
     int particle_frame_index = 0;
+
     bool use_tessellated_terrain = true;
+    float accumulation_strength = 0.004f;
     float terrain_edge_width = 0.002f;
-    float height_texture_tiling = 8.0f;
+    float height_texture_tiling = 1.0f;
     float height_texture_strength = 0.35f;
+
     float terrain_world_size = 26.0f;
     float sky_world_size = 30.0f;
+
     bool use_snow_normal_map = true;
-    float snow_normal_tiling = 16.0f;
+    float snow_normal_tiling = 1.0f;
     float snow_normal_strength = 0.6f;
 
 	// ----------------------------------------------------------------------------
@@ -162,9 +166,9 @@ protected:
 	bool show_snow = true;
 
     float snow_height_scale = 0.8f;
-    float max_snow_height = 2.5f;
+    float max_snow_height = 5.0f;
     bool use_accumulation_displacement = true;
-    float snow_tessellation_level = 16.0f;
+    float snow_tessellation_level = 64.0f;
     float debug_snow_displacement = 0.0f;
 
 	/** The constants identifying what can be displayed on the screen. */

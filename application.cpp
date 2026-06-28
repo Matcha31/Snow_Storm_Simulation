@@ -278,7 +278,6 @@ void Application::initialize_particles(int particle_count)
 
     float elevation = 12.0f + cloud_size / 2.0f - 5.0f;
     glm::vec3 base_position = glm::vec3(0.0f, elevation, 0.0f);
-    // glm::vec3 base_position = glm::vec3(0.0f, elevation - cloud_size * 0.75f, 0.0f);
 
 	for (int i = 0; i < particle_count; i++)
 	{
@@ -378,10 +377,10 @@ void Application::accumulate_particles()
 	particle_accumulation_program.uniform("accumulation_particle_size", accumulation_particle_size);
 	particle_accumulation_program.uniform("frame_index", particle_frame_index);
 	particle_accumulation_program.uniform("max_delay", 5.0f);
-	particle_accumulation_program.uniform("accumulation_strength", 0.02f);
+	particle_accumulation_program.uniform("accumulation_strength", accumulation_strength);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, particle_buffer);
-	glBindTextureUnit(0, circle_tex);
+	glBindTextureUnit(0, particle_tex);
 	glBindVertexArray(particle_vao);
 
 	glDrawArrays(GL_POINTS, 0, current_snow_count);
@@ -394,6 +393,10 @@ void Application::accumulate_particles()
 
 void Application::blur_accumulation_texture()
 {
+    int blur_radius = static_cast<int>(std::ceil(impact_radius * 0.5f));
+    blur_radius = std::clamp(blur_radius, 1, 32);
+    float blur_sigma = std::max(1.0f, static_cast<float>(blur_radius) * 0.5f);
+
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
 
@@ -404,6 +407,8 @@ void Application::blur_accumulation_texture()
 	glViewport(0, 0, sky_tex_reso, sky_tex_reso);
 	glBindTextureUnit(0, accumulation_tex);
 	blur_program.uniform("direction", glm::vec2(1.0f / static_cast<float>(sky_tex_reso), 0.0f)); // horizontal
+    blur_program.uniform("blur_radius", blur_radius);
+    blur_program.uniform("blur_sigma", blur_sigma);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 
 	glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_FRAMEBUFFER_BARRIER_BIT);
@@ -413,6 +418,8 @@ void Application::blur_accumulation_texture()
 	glViewport(0, 0, sky_tex_reso, sky_tex_reso);
 	glBindTextureUnit(0, accumulation_blur_tex);
 	blur_program.uniform("direction", glm::vec2(0.0f, 1.0f / static_cast<float>(sky_tex_reso))); // vertical
+    blur_program.uniform("blur_radius", blur_radius);
+    blur_program.uniform("blur_sigma", blur_sigma);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -692,6 +699,7 @@ void Application::render()
             render_particles();
             update_particles(frame_delta);
             accumulate_particles();
+            //for (int i = 0; i < impact_radius * 0.6f; i++)
             blur_accumulation_texture();
         }
 	}
@@ -861,15 +869,14 @@ void Application::render_ui()
 
     ImGui::Checkbox("Tessellated Terrain", &use_tessellated_terrain);
     ImGui::SliderFloat("Tess Level", &snow_tessellation_level, 1.0f, 64.0f);
-    ImGui::SliderFloat("Debug Snow Height", &debug_snow_displacement, 0.0f, 1.0f);
     ImGui::Checkbox("Accumulation Height", &use_accumulation_displacement);
     ImGui::SliderFloat("Snow Height Scale", &snow_height_scale, 0.0f, 5.0f);
-    ImGui::SliderFloat("Max Snow Height", &max_snow_height, 0.0f, 5.0f);
+    ImGui::SliderFloat("Max Snow Height", &max_snow_height, 0.0f, 10.0f);
     ImGui::SliderFloat("Terrain Edge Width", &terrain_edge_width, 0.0f, 0.05f);
     ImGui::SliderFloat("Height Tex Tiling", &height_texture_tiling, 1.0f, 32.0f);
     ImGui::SliderFloat("Height Tex Strength", &height_texture_strength, 0.0f, 1.0f);
     ImGui::Checkbox("Snow Normal Map", &use_snow_normal_map);
-    ImGui::SliderFloat("Normal Tiling", &snow_normal_tiling, 1.0f, 64.0f);
+    ImGui::SliderFloat("Normal Tiling", &snow_normal_tiling, 0.5f, 5.0f);
     ImGui::SliderFloat("Normal Strength", &snow_normal_strength, 0.0f, 2.0f);
 
 	const char* particle_labels[10] = {"256", "512", "1024", "2048", "4096", "8192", "16384", "32768", "65536", "131072"};

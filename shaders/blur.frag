@@ -7,20 +7,36 @@ in VertexData
 
 layout(binding = 0) uniform sampler2D input_tex;
 
-uniform vec2 direction;
+uniform vec2 direction; // vertical or horizontal
+uniform int blur_radius; // how far we sample
+uniform float blur_sigma; // how much influence
 
 layout(location = 0) out vec2 final_color;
 
+// Center : higher weight, farther : lower weight
+float gaussian_weight(float x, float sigma)
+{
+	return exp(-(x * x) / (2.0 * sigma * sigma));
+}
+
 void main()
 {
-	vec2 uv = in_data.tex_coord;
+	vec2 sum = vec2(0.0);
+	float weight_sum = 0.0;
 
-	vec2 value = texture(input_tex, uv).rg * 0.2270270270;
-    // weight sum ~= 1
-	value += texture(input_tex, uv + direction * 1.3846153846).rg * 0.3162162162;
-	value += texture(input_tex, uv - direction * 1.3846153846).rg * 0.3162162162;
-	value += texture(input_tex, uv + direction * 3.2307692308).rg * 0.0702702703;
-	value += texture(input_tex, uv - direction * 3.2307692308).rg * 0.0702702703;
+	for (int i = -32; i <= 32; i++) // fixed loop more GPU friendly
+	{
+		if (abs(i) > blur_radius) { // out of range
+			continue;
+        }
 
-	final_color = value;
+		float weight = gaussian_weight(float(i), blur_sigma);
+		vec2 uv = in_data.tex_coord + direction * float(i); // neighboor sample coord
+
+		sum += texture(input_tex, uv).rg * weight;
+		weight_sum += weight;
+	}
+
+    // Normalize to avoid change in snow intensity
+	final_color = sum / weight_sum;
 }

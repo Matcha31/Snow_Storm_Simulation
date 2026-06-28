@@ -70,8 +70,11 @@ layout(location = 0) out vec4 final_color;
 
 vec3 world_to_sky_position(vec3 position_ws)
 {
+    // Clip space coord
 	vec4 sky_position = sky_camera.projection * sky_camera.view * vec4(position_ws, 1.0);
+    // Pespective divide
 	sky_position.xyz /= sky_position.w;
+    // Convert from [-1, 1] to [0, 1]
 	return sky_position.xyz * 0.5 + 0.5;
 }
 
@@ -164,6 +167,8 @@ void main()
 	vec3 mat_diffuse = has_texture ? texture_color : material.diffuse;
 	vec3 mat_specular = material.specular;
 
+    // What changes from lit fragment shader 
+    // We add whitening from accumulated snow
 	float snow_amount = sample_object_snow(in_data.position_ws);
 
 	mat_ambient = mix(mat_ambient, vec3(1.0), snow_amount);

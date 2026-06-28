@@ -104,7 +104,7 @@ Use object accumulation to whiten objects.
 - Use top-down texture to avoid whitening hidden fragments (under)
 - Clear whitening texture when clicking clear snow
 
-## 5. Tesselation Snow Cover
+## 5. Tessellation Snow Cover
 
 ### 5.1 Tesselation Terrain Mesh
 
@@ -128,12 +128,26 @@ Use accumulation to create 3D snow cover.
 
 Make snow cover more realistic.
 
- - Snow normal mapping
- - Used displaced tessellation in depth pass
+- Sample snow_height_tex with terrain UVs
+- Use height texture as local variation on accumulated snow height
+- Keep accumulation texture in sky UVs and material texture in terrain UVs
+
+### 5.4 Snow Lighting and Normal Mapping
+
+Make lighting match the displaced snow.
+
+- Reconstruct snow normal from neighboring height samples
+- Estimate slope with left/right/top/bottom height differences
+- Use reconstructed normal in Phong lighting
+- Build tangent and bitangent from height field
+- Sample snow_normal_tex with terrain UVs
+- Convert normal map from [0, 1] to [-1, 1]
+- Transform sampled normal using tangent, bitangent and macro normal
 
 ## 6. Tunning
 
 - Resize fullscreen texture (camera UBO)
+- Tune parameters using UI
 
 ---
 
@@ -141,3 +155,4 @@ Make snow cover more realistic.
 
 - Design SSBO particle layout with vec4/ivec4 alignment
 - Create hash based random number generator in GLSL
+- Find how to blur depending on radius to eliminate rain like artifacts (blur radius and sigma)
