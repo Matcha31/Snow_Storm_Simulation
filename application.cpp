@@ -64,10 +64,16 @@ void Application::compile_shaders()
     object_snow_program = ShaderProgram(lecture_shaders_path / "object.vert", lecture_shaders_path / "object_snow.frag");
 
     snow_terrain_program.add_vertex_shader(lecture_shaders_path / "snow_terrain.vert");
-    snow_terrain_program.add_fragment_shader(lecture_shaders_path / "lit.frag");
+    snow_terrain_program.add_fragment_shader(lecture_shaders_path / "snow_terrain.frag");
     snow_terrain_program.add_tess_control_shader(lecture_shaders_path / "snow_terrain.tesc");
     snow_terrain_program.add_tess_evaluation_shader(lecture_shaders_path / "snow_terrain.tese");
     snow_terrain_program.link();
+
+    snow_terrain_depth_program.add_vertex_shader(lecture_shaders_path / "snow_terrain.vert");
+    snow_terrain_depth_program.add_fragment_shader(lecture_shaders_path / "depth_mask.frag");
+    snow_terrain_depth_program.add_tess_control_shader(lecture_shaders_path / "snow_terrain.tesc");
+    snow_terrain_depth_program.add_tess_evaluation_shader(lecture_shaders_path / "snow_terrain.tese");
+    snow_terrain_depth_program.link();
 
 	std::cout << "Shaders are reloaded." << std::endl;
 }
@@ -219,6 +225,14 @@ void Application::prepare_framebuffers()
 
 void Application::resize_fullscreen_textures()
 {
+	camera_ubo.set_projection(glm::perspective(
+		glm::radians(45.f),
+		static_cast<float>(width) / static_cast<float>(height),
+		0.1f,
+		5000.0f
+	));
+
+	camera_ubo.update_opengl_data();
 }
 
 void Application::prepare_scene()
@@ -535,7 +549,10 @@ void Application::render_depth_pass()
 	sky_camera_ubo.bind_buffer_base(CameraUBO::DEFAULT_CAMERA_BINDING);
 
     // Renders the terrain for 0.5
-	render_object_to_depth_pass(snow_terrain_object, 0.5f, false);
+    if (use_tessellated_terrain)
+        render_snow_terrain_to_depth_pass();
+    else 
+        render_object_to_depth_pass(snow_terrain_object, 0.5f, false);
 
     // Renders the objects for 1.0
 	for (const SceneObject& object : scene_objects)
@@ -578,15 +595,45 @@ void Application::render_snow_terrain()
 	snow_terrain_program.use();
 	snow_terrain_program.uniform("tessellation_level", snow_tessellation_level);
 	snow_terrain_program.uniform("debug_displacement", debug_snow_displacement);
-    snow_terrain_program.uniform("snow_height_scale", snow_height_scale);
+	snow_terrain_program.uniform("snow_height_scale", snow_height_scale);
 	snow_terrain_program.uniform("max_snow_height", max_snow_height);
 	snow_terrain_program.uniform("terrain_edge_width", terrain_edge_width);
 	snow_terrain_program.uniform("use_accumulation_displacement", use_accumulation_displacement);
+	snow_terrain_program.uniform("height_texture_tiling", height_texture_tiling);
+	snow_terrain_program.uniform("height_texture_strength", height_texture_strength);
+	snow_terrain_program.uniform("terrain_world_size", terrain_world_size);
+	snow_terrain_program.uniform("sky_world_size", sky_world_size);
+	snow_terrain_program.uniform("use_snow_normal_map", use_snow_normal_map);
+	snow_terrain_program.uniform("snow_normal_tiling", snow_normal_tiling);
+	snow_terrain_program.uniform("snow_normal_strength", snow_normal_strength);
 
-    sky_camera_ubo.bind_buffer_base(5); // Binding expected by tesselation shader
-    glBindTextureUnit(1, accumulation_tex);
+	sky_camera_ubo.bind_buffer_base(5); // Binding expected by the shader
+	glBindTextureUnit(1, accumulation_tex);
+	glBindTextureUnit(2, snow_height_tex);
+    glBindTextureUnit(3, snow_normal_tex);
 
 	render_object(snow_terrain_object, snow_terrain_program, true);
+}
+
+void Application::render_snow_terrain_to_depth_pass() {
+	snow_terrain_depth_program.use();
+	snow_terrain_depth_program.uniform("tessellation_level", snow_tessellation_level);
+	snow_terrain_depth_program.uniform("debug_displacement", debug_snow_displacement);
+	snow_terrain_depth_program.uniform("snow_height_scale", snow_height_scale);
+	snow_terrain_depth_program.uniform("max_snow_height", max_snow_height);
+	snow_terrain_depth_program.uniform("terrain_edge_width", terrain_edge_width);
+	snow_terrain_depth_program.uniform("use_accumulation_displacement", use_accumulation_displacement);
+	snow_terrain_depth_program.uniform("height_texture_tiling", height_texture_tiling);
+	snow_terrain_depth_program.uniform("height_texture_strength", height_texture_strength);
+	snow_terrain_depth_program.uniform("terrain_world_size", terrain_world_size);
+	snow_terrain_depth_program.uniform("sky_world_size", sky_world_size);
+	snow_terrain_depth_program.uniform("surface_value", 0.5f);
+
+	sky_camera_ubo.bind_buffer_base(5);
+	glBindTextureUnit(1, accumulation_tex);
+	glBindTextureUnit(2, snow_height_tex);
+
+	render_object(snow_terrain_object, snow_terrain_depth_program, true);
 }
 
 void Application::render()
@@ -811,14 +858,19 @@ void Application::render_ui()
 	ImGui::SliderFloat("Cloud Size", &cloud_size, 1.f, 30.f);
 
 	ImGui::Checkbox("Wireframe", &wireframe);
+
     ImGui::Checkbox("Tessellated Terrain", &use_tessellated_terrain);
     ImGui::SliderFloat("Tess Level", &snow_tessellation_level, 1.0f, 64.0f);
     ImGui::SliderFloat("Debug Snow Height", &debug_snow_displacement, 0.0f, 1.0f);
-
     ImGui::Checkbox("Accumulation Height", &use_accumulation_displacement);
     ImGui::SliderFloat("Snow Height Scale", &snow_height_scale, 0.0f, 5.0f);
     ImGui::SliderFloat("Max Snow Height", &max_snow_height, 0.0f, 2.0f);
     ImGui::SliderFloat("Terrain Edge Width", &terrain_edge_width, 0.0f, 0.05f);
+    ImGui::SliderFloat("Height Tex Tiling", &height_texture_tiling, 1.0f, 32.0f);
+    ImGui::SliderFloat("Height Tex Strength", &height_texture_strength, 0.0f, 1.0f);
+    ImGui::Checkbox("Snow Normal Map", &use_snow_normal_map);
+    ImGui::SliderFloat("Normal Tiling", &snow_normal_tiling, 1.0f, 64.0f);
+    ImGui::SliderFloat("Normal Strength", &snow_normal_strength, 0.0f, 2.0f);
 
 	const char* particle_labels[10] = {"256", "512", "1024", "2048", "4096", "8192", "16384", "32768", "65536", "131072"};
 	int exponent = static_cast<int>(log2(current_snow_count) - 8);	  // -8 because we start at 256 = 2^8

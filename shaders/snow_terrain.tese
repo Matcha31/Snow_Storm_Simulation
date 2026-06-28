@@ -39,12 +39,15 @@ out VertexData
 } out_data;
 
 layout(binding = 1) uniform sampler2D accumulation_texture;
+layout(binding = 2) uniform sampler2D snow_height_texture;
 
 uniform float debug_displacement; // Snow height for debug
 uniform float snow_height_scale;
 uniform float max_snow_height;
 uniform float terrain_edge_width;
 uniform bool use_accumulation_displacement;
+uniform float height_texture_tiling; 
+uniform float height_texture_strength; // How much we vary
 
 vec3 world_to_sky_position(vec3 position_ws)
 {
@@ -68,7 +71,7 @@ bool is_terrain_edge(vec2 tex_coord)
 }
 
 // Get accumulated snow amount wit accumulation texture
-float sample_accumulated_height(vec3 position_ws)
+float sample_accumulated_height(vec3 position_ws, vec2 tex_coord)
 {
 	vec3 sky_position = world_to_sky_position(position_ws);
 	vec2 sky_uv = sky_position.xy;
@@ -79,6 +82,13 @@ float sample_accumulated_height(vec3 position_ws)
 
 	float accumulated_snow = texture(accumulation_texture, sky_uv).r;
 	float height = accumulated_snow * snow_height_scale;
+
+    // Vary height
+    float height_sample = texture(snow_height_texture, tex_coord * height_texture_tiling).r;
+	float height_variation = mix(1.0, 0.75 + height_sample * 0.5, height_texture_strength);
+
+	height *= height_variation;
+
 	return clamp(height, 0.0, max_snow_height);
 }
 
@@ -108,7 +118,7 @@ void main()
 	float height = debug_displacement;
 
 	if (use_accumulation_displacement) {
-		height += sample_accumulated_height(position_ws);
+		height += sample_accumulated_height(position_ws, tex_coord);
 	}
 	if (is_terrain_edge(tex_coord)) {
 		height = 0.0;

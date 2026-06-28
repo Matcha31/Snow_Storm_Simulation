@@ -108,6 +108,7 @@ protected:
     ShaderProgram blur_program;
     ShaderProgram object_snow_program;
     ShaderProgram snow_terrain_program;
+    ShaderProgram snow_terrain_depth_program;
 
 	// ----------------------------------------------------------------------------
 	// Variables (Frame Buffers)
@@ -133,6 +134,13 @@ protected:
     int particle_frame_index = 0;
     bool use_tessellated_terrain = true;
     float terrain_edge_width = 0.002f;
+    float height_texture_tiling = 8.0f;
+    float height_texture_strength = 0.35f;
+    float terrain_world_size = 26.0f;
+    float sky_world_size = 30.0f;
+    bool use_snow_normal_map = true;
+    float snow_normal_tiling = 16.0f;
+    float snow_normal_strength = 0.6f;
 
 	// ----------------------------------------------------------------------------
 	// Variables (GUI)
@@ -246,6 +254,7 @@ public:
 
     void accumulate_particles();
     void blur_accumulation_texture();
+    void render_snow_terrain_to_depth_pass();
 
 	// ----------------------------------------------------------------------------
 	// Render

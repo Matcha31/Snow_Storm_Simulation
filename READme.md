@@ -103,6 +103,15 @@ Find where the paticules may spawn.
 - Compute displacement
 - Apply displacement to terrain mesh
 
+### 5.3 Texture variations
+
+ - Snow normal mapping
+ - Used displaced tessellation in depth pass
+
+## 6. Tunning
+
+- Resize fullscreen texture (camera UBO)
+
 -- 
 ### AI Use
 
