@@ -107,6 +107,7 @@ protected:
     ShaderProgram particle_accumulation_program;
     ShaderProgram blur_program;
     ShaderProgram object_snow_program;
+    ShaderProgram snow_terrain_program;
 
 	// ----------------------------------------------------------------------------
 	// Variables (Frame Buffers)
@@ -130,6 +131,9 @@ protected:
     float particle_size = 0.12f;
     float frame_delta = 0.0f;
     int particle_frame_index = 0;
+    bool use_tessellated_terrain = true;
+    float snow_tessellation_level = 16.0f;
+    float debug_snow_displacement = 0.0f;
 
 	// ----------------------------------------------------------------------------
 	// Variables (GUI)
@@ -267,6 +271,8 @@ public:
 
     /** Render particles */
     void render_particles();
+
+    void render_snow_terrain();
 
 	// ----------------------------------------------------------------------------
 	// GUI

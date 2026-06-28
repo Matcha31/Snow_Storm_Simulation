@@ -63,6 +63,12 @@ void Application::compile_shaders()
     blur_program = ShaderProgram(lecture_shaders_path / "full_screen_quad.vert", lecture_shaders_path / "blur.frag");
     object_snow_program = ShaderProgram(lecture_shaders_path / "object.vert", lecture_shaders_path / "object_snow.frag");
 
+    snow_terrain_program.add_vertex_shader(lecture_shaders_path / "snow_terrain.vert");
+    snow_terrain_program.add_fragment_shader(lecture_shaders_path / "lit.frag");
+    snow_terrain_program.add_tess_control_shader(lecture_shaders_path / "snow_terrain.tesc");
+    snow_terrain_program.add_tess_evaluation_shader(lecture_shaders_path / "snow_terrain.tese");
+    snow_terrain_program.link();
+
 	std::cout << "Shaders are reloaded." << std::endl;
 }
 
@@ -567,6 +573,15 @@ void Application::render_particles()
 	glDisable(GL_BLEND);
 }
 
+void Application::render_snow_terrain()
+{
+	snow_terrain_program.use();
+	snow_terrain_program.uniform("tessellation_level", snow_tessellation_level);
+	snow_terrain_program.uniform("debug_displacement", debug_snow_displacement);
+
+	render_object(snow_terrain_object, snow_terrain_program, true);
+}
+
 void Application::render()
 {
 	// Starts measuring the elapsed time.
@@ -652,7 +667,10 @@ void Application::render_scene_without_cloud(CameraUBO& camera, bool depth_pass)
 	{
 		render_object_with_snow(object);
 	}
-	render_object(snow_terrain_object, default_lit_program, false);
+    if (use_tessellated_terrain)
+        render_snow_terrain();
+    else
+        render_object(snow_terrain_object, default_lit_program, false);
 
 	// Just to make sure we reset to fill mode.
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -786,6 +804,9 @@ void Application::render_ui()
 	ImGui::SliderFloat("Cloud Size", &cloud_size, 1.f, 30.f);
 
 	ImGui::Checkbox("Wireframe", &wireframe);
+    ImGui::Checkbox("Tessellated Terrain", &use_tessellated_terrain);
+    ImGui::SliderFloat("Tess Level", &snow_tessellation_level, 1.0f, 64.0f);
+    ImGui::SliderFloat("Debug Snow Height", &debug_snow_displacement, 0.0f, 1.0f);
 
 	const char* particle_labels[10] = {"256", "512", "1024", "2048", "4096", "8192", "16384", "32768", "65536", "131072"};
 	int exponent = static_cast<int>(log2(current_snow_count) - 8);	  // -8 because we start at 256 = 2^8
