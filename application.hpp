@@ -162,7 +162,7 @@ protected:
 	bool show_snow = true;
 
     float snow_height_scale = 0.8f;
-    float max_snow_height = 0.75f;
+    float max_snow_height = 2.5f;
     bool use_accumulation_displacement = true;
     float snow_tessellation_level = 16.0f;
     float debug_snow_displacement = 0.0f;
@@ -264,7 +264,7 @@ public:
 	void render() override;
 
 	/** Renders the whole scene without cloud. */
-	void render_scene_without_cloud(CameraUBO& camera, bool depth_pass);
+	void render_scene_without_cloud(CameraUBO& camera);
 
 	/** Renders the specified texture over the whole screen. */
 	void display_texture(GLuint texture, int channel = 0);

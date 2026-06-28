@@ -682,7 +682,7 @@ void Application::render()
 		glEnable(GL_DEPTH_TEST);
 
         // Opaque objects write deph first
-		render_scene_without_cloud(camera_ubo, false);
+		render_scene_without_cloud(camera_ubo);
 		render_object(cloud_object, default_lit_program, false);
 		render_object(light_object1, default_unlit_program, false);
 		render_object(light_object2, default_unlit_program, false);
@@ -710,7 +710,7 @@ void Application::render()
 	fps_gpu = 1000.f / (static_cast<float>(render_time) * 1e-6f);
 }
 
-void Application::render_scene_without_cloud(CameraUBO& camera, bool depth_pass)
+void Application::render_scene_without_cloud(CameraUBO& camera)
 {
 	camera.bind_buffer_base(CameraUBO::DEFAULT_CAMERA_BINDING); 
 	phong_lights_ubo.bind_buffer_base(CameraUBO::DEFAULT_LIGHTS_BINDING);
@@ -864,7 +864,7 @@ void Application::render_ui()
     ImGui::SliderFloat("Debug Snow Height", &debug_snow_displacement, 0.0f, 1.0f);
     ImGui::Checkbox("Accumulation Height", &use_accumulation_displacement);
     ImGui::SliderFloat("Snow Height Scale", &snow_height_scale, 0.0f, 5.0f);
-    ImGui::SliderFloat("Max Snow Height", &max_snow_height, 0.0f, 2.0f);
+    ImGui::SliderFloat("Max Snow Height", &max_snow_height, 0.0f, 5.0f);
     ImGui::SliderFloat("Terrain Edge Width", &terrain_edge_width, 0.0f, 0.05f);
     ImGui::SliderFloat("Height Tex Tiling", &height_texture_tiling, 1.0f, 32.0f);
     ImGui::SliderFloat("Height Tex Strength", &height_texture_strength, 0.0f, 1.0f);

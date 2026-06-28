@@ -1,6 +1,6 @@
-# Render / update pipeline considered
+# Render / update pipeline
 
-Per frame:
+### Per frame:
 
 1. Update camera, lights, cloud position
 2. Resize/reinitialize resources if needed
@@ -22,6 +22,8 @@ Per frame:
 8. Accumulate stopped particles into accumulation texture
 9. Blur accumulation texture
 10. Display selected debug texture if GUI asks for it
+
+---
 
 # Outline
 
@@ -73,37 +75,58 @@ Find where the paticules may spawn.
 
 ### 4.1 Accumulation Texture
 
+Store persistent snow information.
+
 - Keep stopped particles as hit terrain or object
 - Render them from sky camera
 - Write impact into accumulation texture
-- Store terrain in R, object in G
-- Blend with previous frame
-- Reset accumated particles
+- Store terrain in R channel and object in G channel
+- Blend with previous frame (additive blending)
+- Reset accumated particles to reuse
 - Clear accumulation texture when clicking clear snow
 
 ### 4.2 Blur Accumulation Texture
 
-- 
+Smooth stored snow.
+
+- Use separable blur (for perf)
+- 1st pass: horizontal blur from accumulation texture into temp texture
+- 2nd pass: vertical blur from temp texture into accumulation texture
+- Avoid writing and reading same texture at the same time
+- Clear blur textures when clicking clear snow
 
 ### 4.3 Whitening Effect on Objects
 
+Use object accumulation to whiten objects.
+
+- Project object into sky space
+- Use accumulation in G channel to whiten object
+- Use top-down texture to avoid whitening hidden fragments (under)
+- Clear whitening texture when clicking clear snow
 
 ## 5. Tesselation Snow Cover
 
 ### 5.1 Tesselation Terrain Mesh
 
-- Get barycentric coordinates of original triangle
-- Get tessellated vertices in tessellation shader
-- Add displacement
-- Make displacement and tessellation level editable
+- Render snow terrain with GL_PATCHES
+- Set tessellation level (tess control shader)
+- Interpolate generated vertices (tess evaluation shader)
+- Use gl_TessCoord as barycentric coordinates
+- Debug with wireframe and constant displacement
 
 ### 5.2  Displacement from Accumulation Texture
 
-- Read accumulated particles from accumulation texture
-- Compute displacement
-- Apply displacement to terrain mesh
+Use accumulation to create 3D snow cover.
+
+- Project terrain into sky space
+- Use accumulation in R channel to convert into world space height
+- Clamp to max height
+- Displace vertex upward (Y axis)
+- Keep edges fixed with border test
 
 ### 5.3 Texture variations
+
+Make snow cover more realistic.
 
  - Snow normal mapping
  - Used displaced tessellation in depth pass
@@ -112,8 +135,9 @@ Find where the paticules may spawn.
 
 - Resize fullscreen texture (camera UBO)
 
--- 
+---
+
 ### AI Use
 
-- Find vec4 for particles attributes to have aligned GPU memory
-- Create rndom number generator in GLSL
+- Design SSBO particle layout with vec4/ivec4 alignment
+- Create hash based random number generator in GLSL
