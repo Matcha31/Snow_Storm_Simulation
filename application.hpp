@@ -134,7 +134,7 @@ protected:
     int particle_frame_index = 0;
 
     bool use_tessellated_terrain = true;
-    float accumulation_strength = 0.004f;
+    float accumulation_strength = 0.02f;
     float terrain_edge_width = 0.002f;
     float height_texture_tiling = 1.0f;
     float height_texture_strength = 0.35f;
@@ -165,7 +165,7 @@ protected:
 	/** The flag determining if a snow should be visible. */
 	bool show_snow = true;
 
-    float snow_height_scale = 0.8f;
+    float snow_height_scale = 1.0f;
     float max_snow_height = 5.0f;
     bool use_accumulation_displacement = true;
     float snow_tessellation_level = 64.0f;

@@ -26,7 +26,8 @@ void main()
 
 	for (int i = -32; i <= 32; i++) // fixed loop more GPU friendly
 	{
-		if (abs(i) > blur_radius) { // out of range
+		if (abs(i) > blur_radius) // out of range
+        {
 			continue;
         }
 

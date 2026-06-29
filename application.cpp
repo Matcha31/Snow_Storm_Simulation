@@ -175,9 +175,6 @@ void Application::prepare_framebuffers()
     glNamedFramebufferDrawBuffers(depth_mask_fbo, 1, draw_buffers);
     glNamedFramebufferReadBuffer(depth_mask_fbo, GL_COLOR_ATTACHMENT0);
 
-    const GLfloat clear_color[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    glClearNamedFramebufferfv(accumulation_fbo, GL_COLOR, 0, clear_color);
-
     if (glCheckNamedFramebufferStatus(depth_mask_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     {
         throw std::runtime_error("Depth mask framebuffer is incomplete.");
@@ -201,6 +198,9 @@ void Application::prepare_framebuffers()
     {
         throw std::runtime_error("Accumulation framebuffer is incomplete.");
     }
+    const GLfloat clear_color[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    //glClearNamedFramebufferfv(accumulation_fbo, GL_COLOR, 0, clear_color);
+
 
     // Blurring 
     glCreateTextures(GL_TEXTURE_2D, 1, &accumulation_blur_tex);
@@ -870,7 +870,7 @@ void Application::render_ui()
     ImGui::Checkbox("Tessellated Terrain", &use_tessellated_terrain);
     ImGui::SliderFloat("Tess Level", &snow_tessellation_level, 1.0f, 64.0f);
     ImGui::Checkbox("Accumulation Height", &use_accumulation_displacement);
-    ImGui::SliderFloat("Snow Height Scale", &snow_height_scale, 0.0f, 5.0f);
+    ImGui::SliderFloat("Snow Height Scale", &snow_height_scale, 0.5f, 5.0f);
     ImGui::SliderFloat("Max Snow Height", &max_snow_height, 0.0f, 10.0f);
     ImGui::SliderFloat("Terrain Edge Width", &terrain_edge_width, 0.0f, 0.05f);
     ImGui::SliderFloat("Height Tex Tiling", &height_texture_tiling, 1.0f, 32.0f);
