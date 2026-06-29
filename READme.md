@@ -148,6 +148,7 @@ Make lighting match the displaced snow.
 
 - Resize fullscreen texture (camera UBO)
 - Tune parameters using UI
+- Fix rain like artifacts
 
 ---
 

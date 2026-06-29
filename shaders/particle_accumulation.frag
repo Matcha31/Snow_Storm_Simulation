@@ -7,7 +7,7 @@ in ParticleQuadData
 	flat int hit_object;
 } in_data;
 
-layout(binding = 0) uniform sampler2D impact_texture;
+layout(binding = 0) uniform sampler2D impact_texture; // shape of footprint
 
 uniform float accumulation_strength;
 
@@ -16,12 +16,15 @@ layout(location = 0) out vec2 final_color;
 void main()
 {
 	vec4 texel = texture(impact_texture, in_data.tex_coord);
+    // only visible parts of footprint
 	float footprint = texel.r * texel.a * accumulation_strength;
 
+    // No close to 0
 	if (footprint < 0.0001)
 	{
 		discard;
 	}
 
+    // Seperate terrain and objects
 	final_color = vec2(float(in_data.hit_terrain) * footprint, float(in_data.hit_object) * footprint);
 }

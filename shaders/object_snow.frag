@@ -93,14 +93,19 @@ float sample_object_snow(vec3 position_ws)
 		return 0.0;
 	}
 
+    // Depth on closest visible surface for sky camera
+    // 1st thing the snow would hit
 	float scene_depth = texture(sky_depth_texture, sky_uv).r;
 
+    // If farther no snow
 	if (scene_depth < 0.999 && sky_position.z > scene_depth + top_occlusion_bias)
 	{
 		return 0.0;
 	}
 
+    // Seperate from terrain
 	float accumulated_snow = texture(accumulation_texture, sky_uv).g;
+    // Whitening amount
 	return clamp(accumulated_snow * object_snow_strength, 0.0, object_snow_max);
 }
 

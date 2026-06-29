@@ -1,7 +1,7 @@
 #version 450 core
 
-layout(points) in;
-layout(triangle_strip, max_vertices = 4) out;
+layout(points) in; // One point per particle
+layout(triangle_strip, max_vertices = 4) out; // Produce 2 triangles
 
 layout(std140, binding = 0) uniform CameraBuffer
 {
@@ -44,6 +44,7 @@ uniform float accumulation_particle_size;
 uniform int frame_index;
 uniform float max_delay;
 
+// Same as particle update
 uint hash_uint(uint x)
 {
 	x ^= x >> 16;
@@ -59,6 +60,7 @@ float random01(uint seed)
 	return float(hash_uint(seed)) / 4294967295.0;
 }
 
+// Create one vertex of the quad
 void emit_particle_vertex(vec3 center, vec2 offset, vec2 tex_coord)
 {
 	vec3 camera_right = normalize(vec3(camera.view_inv[0]));
@@ -83,6 +85,7 @@ void reset_particle(uint particle_id)
 
 void main()
 {
+    // Check if particle hit something 
 	if (in_data[0].hit_terrain == 0 && in_data[0].hit_object == 0)
 	{
 		return;
@@ -90,11 +93,13 @@ void main()
 
 	vec3 center = in_data[0].position_ws;
 
+    // Emit the 4 vertices of the quad
 	emit_particle_vertex(center, vec2(-0.5, -0.5), vec2(0.0, 0.0));
 	emit_particle_vertex(center, vec2( 0.5, -0.5), vec2(1.0, 0.0));
 	emit_particle_vertex(center, vec2(-0.5,  0.5), vec2(0.0, 1.0));
 	emit_particle_vertex(center, vec2( 0.5,  0.5), vec2(1.0, 1.0));
 
+    // End triangle strip
 	EndPrimitive();
 
 	reset_particle(in_data[0].particle_id);

@@ -134,7 +134,7 @@ protected:
     int particle_frame_index = 0;
 
     bool use_tessellated_terrain = true;
-    float accumulation_strength = 0.02f;
+    float accumulation_strength = 0.01f;
     float terrain_edge_width = 0.002f;
     float height_texture_tiling = 1.0f;
     float height_texture_strength = 0.35f;

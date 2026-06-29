@@ -22,12 +22,14 @@ out ParticlePointData
 
 void main()
 {
-	Particle particle = particles[gl_VertexID];
+    // Directly read buffer
+	Particle particle = particles[gl_VertexID]; // current draw
 
 	out_data.position_ws = particle.position.xyz;
 	out_data.hit_terrain = particle.flags.x;
 	out_data.hit_object = particle.flags.y;
 	out_data.particle_id = uint(gl_VertexID);
 
+    // Placeholder for now 
 	gl_Position = vec4(particle.position.xyz, 1.0);
 }
